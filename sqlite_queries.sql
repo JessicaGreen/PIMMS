@@ -60,6 +60,17 @@ WHEN origin_country IS NULL THEN 'Unknown'
 ELSE 'No'
 END);
 
+---Use a country mapping table to identify country names that appear somewhere in select columns
+---Concatenate all the matching country names into the 'Countries of origin' column and add question marks until confirmed
+select source_IAMS_AAC."Record reference", 
+group_concat(country_codes.country_name||'?', '; ') AS 'Countries of origin', 
+source_IAMS_AAC."Custodial history",
+source_IAMS_AAC."Administrative context"
+FROM source_IAMS_AAC, country_codes 
+WHERE source_IAMS_AAC."Custodial history" LIKE "%"||country_codes.country_name||"%" 
+OR source_IAMS_AAC."Administrative context" LIKE "%"||country_codes.country_name||"%"
+GROUP BY source_IAMS_AAC."Record reference"
+
 ---Change or 'update' values in existing columns of target table based data in another table
 ---In this case, only update rows of target table where the values of a source column match the values of a target column (e.g. shelfmark)
 ---And only update rows where the values of a column are greater than >, less than <, and/or equal = to a number (e.g. creation date)
@@ -89,14 +100,6 @@ WHERE source_Aleph_AAC."001 # Control Number " = rights.system_num)
     SET pub_country = 
     (SELECT country_name FROM country_codes
     WHERE country_codes.country_code = rights.pub_country);
-	
---Group results on image files based on common folders, this can then be joined with folder-level analysis spreadsheets
-WITH files_and_paths AS (
-	SELECT FILE_PATH, REPLACE(FILE_PATH, NAME, '') AS 'Path', 
-	NAME, SIZE FROM source_AAC_Siegfried_201908
-	LIMIT 10000
-) SELECT Path, SUM(SIZE) AS folder_size, COUNT(NAME) AS num_files FROM files_and_paths
-GROUP BY Path
 
 ---View or 'select' specific columns from a table
 ---Define the order of columns to view and rename them using 'as' clause
@@ -121,3 +124,30 @@ ORDER BY Project
 --ORDER BY "Publication date - Aleph" DESC --Sort numbers in descending order using 'desc' keyword
 --ORDER BY "Creation date - IAMS" ASC --Or sort in ascending order using 'asc' keyword
 ;
+
+--Group results on image files based on common folders, this can then be joined with folder-level analysis spreadsheets
+WITH files_and_paths AS (
+	SELECT FILE_PATH, substr(FILE_PATH, 1, length(FILE_PATH) - length(NAME) - 1) AS "Absolute folder path",	--removes the file name and trailing \ from the file path by calculating: (length of file name) - (length of file path) - 1 
+	--ADD ALIAS FILE PATH
+	NAME, coalesce(SIZE, 0) AS SIZE, --replaces null value in size column with 0 to run calculation
+	CASE WHEN upper(EXT) = 'TIF' OR upper(EXT) = 'TIFF' THEN coalesce(SIZE, 0) --upper() does a case insensitive comparison, normalising the data in the extension column by making it all uppercase and checks for values that are uppercase
+	ELSE 0 END TIF_SIZE,
+	CASE WHEN upper(EXT) = 'XML' THEN coalesce(SIZE, 0)
+	ELSE 0 END XML_SIZE,
+	EXT, EXTENSION_MISMATCH, 
+	CASE WHEN STATUS <> 'Done' THEN STATUS ELSE NULL END ERRORS
+	FROM source_AAC_Siegfried_201908
+	--WHERE EXT = 'xml' OR EXT = 'tif' --limit the results by a specified value to test results
+	--WHERE STATUS <> 'Done' --limit results by only folders that have files with errors
+	LIMIT 10000) 
+SELECT "Absolute folder path", 
+SUM(SIZE) AS "Total file size (B)",
+SUM(TIF_SIZE) AS "Size of tif files (B)",
+SUM(XML_SIZE) AS "Size of xml files (B)",
+SUM(TIF_SIZE + XML_SIZE) AS "Size of tif and xml files (B)",
+COUNT(NAME) AS "Number of files", 
+replace(group_concat(DISTINCT EXT), ',', '; ') AS  "File extensions", --replaces commas with semi-colons 
+(SELECT group_concat(NAME, '; ') WHERE EXTENSION_MISMATCH = 'TRUE') AS "File extension mismatches",
+replace(group_concat(DISTINCT ERRORS), ',', '; ') AS "Errors" 
+FROM files_and_paths
+GROUP BY "Absolute folder path";
