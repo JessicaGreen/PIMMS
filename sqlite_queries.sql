@@ -60,16 +60,17 @@ WHEN origin_country IS NULL THEN 'Unknown'
 ELSE 'No'
 END);
 
----Use a country mapping table to identify country names that appear somewhere in select columns
----Concatenate all the matching country names into the 'Countries of origin' column and add question marks until confirmed
-select source_IAMS_AAC."Record reference", 
-group_concat(country_codes.country_name||'?', '; ') AS 'Countries of origin', 
-source_IAMS_AAC."Custodial history",
-source_IAMS_AAC."Administrative context"
-FROM source_IAMS_AAC, country_codes 
-WHERE source_IAMS_AAC."Custodial history" LIKE "%"||country_codes.country_name||"%" 
-OR source_IAMS_AAC."Administrative context" LIKE "%"||country_codes.country_name||"%"
-GROUP BY source_IAMS_AAC."Record reference"
+---Uses the place_names table/csv file and IAMS export to identify place names that appear somewhere in select IAMS columns
+select aac_iams.ReferenceKey AS Shelfmark, 
+aac_iams.PlaceOfOrigin AS "Place Of Origin (IAMS)", --includes data currently in IAMS PlaceOfOrigin field
+coalesce(aac_iams.PlaceOfOrigin, group_concat(place_names.place_name||'?', '; ')) AS "Actual or Potential Place Of Origin", --coalesce() first checks IAMS PlaceOfOrigin field - if it has data it will use that to populate the "Actual or Potential Place of Origin" column. If this is NULL/empty, it will populate with with matching place names in place_names table and add question marks to each place name
+group_concat(place_names.place_name, '; ') AS "Potential Place Of Origin", --concatenates only matching place names from the place_names table
+aac_iams.CustodialHistory AS "Custodial History (IAMS)",
+aac_iams.AdministrativeContext AS "Administrative Context"
+FROM aac_iams, place_names 
+WHERE aac_iams."CustodialHistory" LIKE "%"||place_names.place_name||"%" --searches IAMS CustodialHistory field for matches in the place_name table
+OR aac_iams."AdministrativeContext" LIKE "%"||place_names.place_name||"%"
+GROUP BY aac_iams."ReferenceKey"
 
 ---Change or 'update' values in existing columns of target table based data in another table
 ---In this case, only update rows of target table where the values of a source column match the values of a target column (e.g. shelfmark)
