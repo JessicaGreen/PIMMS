@@ -26,16 +26,16 @@ WITH files_and_paths AS (
 	--WHERE STATUS <> 'Done' --limits results by only folders that have files with errors - helpful for 'error report'
 	--LIMIT 100000) 
 SELECT FOLDER_PATH AS "Folder path",
-ROUND(SUM(SIZE)/1024/1024) AS "Total file size (MB)", --calculates total folder size by summing SIZE of all files, divides the SIZE by 1024 twice to convert B to MB
-SUM(SIZE) AS "Total file size (B)", 
-SUM(TIF_SIZE + XML_SIZE) AS "Size of tif and xml files (B)",
-SUM(TIF_SIZE) AS "Size of tif files (B)",
-SUM(XML_SIZE) AS "Size of xml files (B)",
-COUNT(NAME) AS "Number of files",
-COUNT(TIF_NAME) + COUNT(XML_NAME) AS "Number of tif and xml files",
-COUNT(TIF_NAME) AS "Number of tif files", --only calculates number of files with the tif or tiff file extensions - uses new TIF_NAMES column created above
-COUNT(TIF_NAME - CONTROL_NAME) AS "Number of tif files (excl. control shots)", 
-COUNT(XML_NAME) AS "Number of xml files",
+round(sum(SIZE)/1024/1024) AS "Total file size (MB)", --calculates total folder size by summing SIZE of all files, divides the SIZE by 1024 twice to convert B to MB
+sum(SIZE) AS "Total file size (B)", 
+sum(TIF_SIZE + XML_SIZE) AS "Size of tif and xml files (B)",
+sum(TIF_SIZE) AS "Size of tif files (B)",
+sum(XML_SIZE) AS "Size of xml files (B)",
+count(NAME) AS "Number of files",
+count(TIF_NAME) + count(XML_NAME) AS "Number of tif and xml files",
+count(TIF_NAME) AS "Number of tif files", --only calculates number of files with the tif or tiff file extensions - uses new TIF_NAMES column created above
+count(TIF_NAME - CONTROL_NAME) AS "Number of tif files (excl. control shots)", 
+count(XML_NAME) AS "Number of xml files",
 replace(group_concat(DISTINCT EXT), ',', '; ') AS  "File extensions", --concatenates all file extensions in folder and replaces default comma seperators with a semi-colon and space
 (SELECT group_concat(NAME, '; ') WHERE upper(EXTENSION_MISMATCH) = 'TRUE') AS "File extension mismatches", --concatenates all file names in folder where there is an extension mismatch - file type doesn't match file extension
 replace(group_concat(DISTINCT ERRORS), ',', '; ') AS "Errors",
